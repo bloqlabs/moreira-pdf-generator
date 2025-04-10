@@ -47,24 +47,34 @@ function createPDF(days, menus, specials) {
 
 	console.log('PDF document created successfully');
 
-	// Set initial position
+	// Set initial position and constants
 	let y = 20;
 	const margin = 20;
 	const pageWidth = doc.internal.pageSize.width;
+	const dayBarExtension = 5; // 5mm extension on each side for day bars
 
 	try {
 		// Add title
-		doc.setFontSize(24);
-		doc.text('WOCHENMENU', margin, y);
+		doc.setFontSize(14); // Main title 14pt
+		doc.setFont(undefined, 'bold');
+		doc.text('Wochenmenu', margin, y);
+		doc.setFont(undefined, 'normal');
 		y += 10;
 
-		// Add subtitle
-		doc.setFontSize(12);
+		// Add subtitle with reduced opacity
+		doc.setFontSize(10); // Regular text 10pt
+		// Convert black to rgba(0,0,0,0.6) by setting fill color with alpha
+		doc.setFillColor(0, 0, 0);
+		doc.setTextColor(0, 0, 0);
+		const opacity = 0.6;
+		doc.saveGraphicsState();
+		doc.setGState(new doc.GState({ opacity }));
 		doc.text(
 			'Tagessuppe mit Brot Fr. 8.- // Tagesmenu klein Fr. 11.- // Tagesmenu gross Fr. 14.-',
 			margin,
 			y
 		);
+		doc.restoreGraphicsState();
 		y += 15;
 
 		// Sort days by sortierung
@@ -92,12 +102,25 @@ function createPDF(days, menus, specials) {
 				})
 				.replace(',', '');
 
-			// Add day header background
-			doc.setFillColor(200, 200, 200);
-			doc.rect(margin, y - 5, pageWidth - margin * 2, 8, 'F');
-			doc.setFillColor(0, 0, 0);
-			doc.setFontSize(14);
-			doc.text(dateStr.toUpperCase(), margin, y);
+			// Extended margins for day header background
+			doc.setFillColor(0, 0, 0); // Black background (#000)
+			doc.rect(
+				margin - dayBarExtension,
+				y - 5,
+				pageWidth - margin * 2 + dayBarExtension * 2,
+				8,
+				'F'
+			);
+
+			// Set text color for date to #D7DF23 (convert hex to RGB)
+			doc.setTextColor(215, 223, 35); // #D7DF23
+			doc.setFontSize(10); // Regular text 10pt
+			doc.setFont(undefined, 'bold'); // Make days bold
+			doc.text(dateStr, margin, y);
+			doc.setFont(undefined, 'normal');
+
+			// Reset text color to black for rest of content
+			doc.setTextColor(0, 0, 0);
 			y += 10;
 
 			// Column positions
@@ -106,26 +129,27 @@ function createPDF(days, menus, specials) {
 			const col3 = 140;
 
 			// SUPPE Column
-			doc.setFontSize(14);
-			doc.text('SUPPE', col1, y);
-			doc.setFontSize(12);
+			doc.setFontSize(10); // Regular text 10pt
+			doc.setFont(undefined, 'bold');
+			doc.text('Suppe', col1, y);
+			doc.setFont(undefined, 'normal');
 			const suppeMenu = findMenuById(menus, day.fieldData['suppe-1']);
 			const suppeLines = doc.splitTextToSize(suppeMenu, 50);
 			doc.text(suppeLines, col1, y + 7);
 
 			// MENU Column
-			doc.setFontSize(14);
-			doc.text('MENU', col2, y);
-			doc.setFontSize(12);
+			doc.setFont(undefined, 'bold');
+			doc.text('Menu', col2, y);
+			doc.setFont(undefined, 'normal');
 			const mainMenu = findMenuById(menus, day.fieldData['menu-1']);
 			const mainMenuLines = doc.splitTextToSize(mainMenu, 50);
 			doc.text(mainMenuLines, col2, y + 7);
 			doc.text('gemischter Blattsalat', col2, y + 7 + mainMenuLines.length * 5);
 
 			// VEGETARISCH Column
-			doc.setFontSize(14);
-			doc.text('VEGETARISCH', col3, y);
-			doc.setFontSize(12);
+			doc.setFont(undefined, 'bold');
+			doc.text('Vegetarisch', col3, y);
+			doc.setFont(undefined, 'normal');
 			const vegiMenu = findMenuById(menus, day.fieldData['vegetarisch-1']);
 			const vegiMenuLines = doc.splitTextToSize(vegiMenu, 50);
 			doc.text(vegiMenuLines, col3, y + 7);
@@ -140,11 +164,20 @@ function createPDF(days, menus, specials) {
 			y = 20;
 		}
 
-		doc.setFillColor(200, 200, 200);
-		doc.rect(margin, y - 5, pageWidth - margin * 2, 8, 'F');
-		doc.setFillColor(0, 0, 0);
-		doc.setFontSize(14);
-		doc.text('SPECIALS', margin, y);
+		doc.setFillColor(0, 0, 0); // Black background
+		doc.rect(
+			margin - dayBarExtension,
+			y - 5,
+			pageWidth - margin * 2 + dayBarExtension * 2,
+			8,
+			'F'
+		);
+		doc.setTextColor(215, 223, 35); // #D7DF23
+		doc.setFontSize(10); // Section headers now 10pt
+		doc.setFont(undefined, 'bold');
+		doc.text('Specials', margin, y);
+		doc.setFont(undefined, 'normal');
+		doc.setTextColor(0, 0, 0); // Reset to black
 		y += 10;
 
 		// Sort specials by sortierung
@@ -152,13 +185,13 @@ function createPDF(days, menus, specials) {
 			(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
 		);
 
+		doc.setFontSize(10); // Regular text 10pt
 		sortedSpecials.forEach((special) => {
 			if (y > 270) {
 				doc.addPage();
 				y = 20;
 			}
 
-			doc.setFontSize(12);
 			const menu1 = findMenuById(menus, special.fieldData['menu-1']);
 			const menu2 = findMenuById(menus, special.fieldData['menu-2']);
 
