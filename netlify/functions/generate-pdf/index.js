@@ -282,7 +282,6 @@ async function createPDF(days, menus, specials) {
 
 					// Add subtitle with reduced opacity
 					if (subtitle) {
-						doc.setFontSize(8); // Smaller font for subtitle
 						doc.setFont(undefined, 'normal');
 
 						// Set reduced opacity for subtitle
@@ -294,23 +293,18 @@ async function createPDF(days, menus, specials) {
 						doc.text(subtitleLines, x, localY);
 						doc.restoreGraphicsState();
 
-						localY += subtitleLines.length * 4; // Slightly reduced spacing for smaller font
+						localY += subtitleLines.length * 5;
 					}
 
 					// Add price
-					doc.setFontSize(10);
 					doc.setFont(undefined, 'normal');
 					if (price) {
-						if (!price.startsWith('Fr.')) {
-							doc.text(`Fr. ${price}`, x, localY);
-						} else {
-							doc.text(price, x, localY);
-						}
-						localY += 8;
+						doc.text(price, x, localY);
+						localY += 5; // Reduced spacing after price
 					}
 
-					// Add spacing between items in the same column
-					localY += 4;
+					// Add minimal spacing between items in the same column
+					localY += 3; // Reduced spacing between items
 				}
 			}
 		} else {
