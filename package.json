@@ -1,21 +1,30 @@
 {
-  "name": "moreira-pdf-generator",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/bloqlabs/moreira-pdf-generator.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/bloqlabs/moreira-pdf-generator/issues"
-  },
-  "homepage": "https://github.com/bloqlabs/moreira-pdf-generator#readme"
+	"name": "moreira-pdf-generator",
+	"version": "1.0.0",
+	"description": "PDF menu generator for Moreira restaurant",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"dev": "netlify dev"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bloqlabs/moreira-pdf-generator.git"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "commonjs",
+	"bugs": {
+		"url": "https://github.com/bloqlabs/moreira-pdf-generator/issues"
+	},
+	"homepage": "https://github.com/bloqlabs/moreira-pdf-generator#readme",
+	"dependencies": {
+		"dotenv": "^16.4.7",
+		"pdfkit": "^0.16.0",
+		"webflow-api": "^3.1.1"
+	},
+	"devDependencies": {
+		"netlify-cli": "^20.0.0"
+	}
 }
