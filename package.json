@@ -21,7 +21,7 @@
 	"homepage": "https://github.com/bloqlabs/moreira-pdf-generator#readme",
 	"dependencies": {
 		"dotenv": "^16.4.7",
-		"pdfkit": "^0.16.0",
+		"jspdf": "^3.0.1",
 		"webflow-api": "^3.1.1"
 	},
 	"devDependencies": {

@@ -1,9 +1,9 @@
-const { Webflow } = require('webflow-api');
-const PDFDocument = require('pdfkit');
+const { WebflowClient } = require('webflow-api');
+const { jsPDF } = require('jspdf');
 
 // Initialize Webflow client
-const webflow = new Webflow({
-	token: process.env.WEBFLOW_ACCESS_TOKEN,
+const webflow = new WebflowClient({
+	accessToken: process.env.WEBFLOW_ACCESS_TOKEN,
 });
 
 const COLLECTION_IDS = {
@@ -14,10 +14,7 @@ const COLLECTION_IDS = {
 
 async function fetchCollectionItems(collectionId) {
 	try {
-		const items = await webflow.collections.items.listItems({
-			collectionId: collectionId,
-			limit: 100,
-		});
+		const items = await webflow.collections.items.listItemsLive(collectionId);
 		return items;
 	} catch (error) {
 		console.error(`Error fetching collection ${collectionId}:`, error);
@@ -25,106 +22,272 @@ async function fetchCollectionItems(collectionId) {
 	}
 }
 
+function findMenuById(menus, id) {
+	return menus.find((menu) => menu.id === id)?.fieldData?.name || '';
+}
+
 function createPDF(days, menus, specials) {
-	const doc = new PDFDocument({
-		size: 'A4',
-		margin: 50,
+	console.log('Starting PDF creation with:', {
+		daysCount: days.length,
+		menusCount: menus.length,
+		specialsCount: specials.length,
 	});
 
-	// Add header
-	doc.fontSize(24).text('Weekly Menu', { align: 'center' });
-	doc.moveDown();
+	// Create new document
+	const doc = new jsPDF({
+		orientation: 'portrait',
+		unit: 'mm',
+		format: 'a4',
+	});
 
-	// Add days and their menus
-	days.forEach((day) => {
-		doc.fontSize(18).text(day.name);
-		doc.moveDown(0.5);
+	// Verify doc was created
+	if (!doc) {
+		throw new Error('Failed to create PDF document');
+	}
 
-		const dayMenus = day.menuRefs
-			.map((menuRef) => menus.find((menu) => menu._id === menuRef))
-			.filter(Boolean);
+	console.log('PDF document created successfully');
 
-		dayMenus.forEach((menu) => {
-			doc.fontSize(14).text(menu.name);
-			doc.fontSize(12).text(menu.description);
-			doc.moveDown(0.5);
+	// Set initial position
+	let y = 20;
+	const margin = 20;
+	const pageWidth = doc.internal.pageSize.width;
+
+	try {
+		// Add title
+		doc.setFontSize(24);
+		doc.text('WOCHENMENU', margin, y);
+		y += 10;
+
+		// Add subtitle
+		doc.setFontSize(12);
+		doc.text(
+			'Tagessuppe mit Brot Fr. 8.- // Tagesmenu klein Fr. 11.- // Tagesmenu gross Fr. 14.-',
+			margin,
+			y
+		);
+		y += 15;
+
+		// Sort days by sortierung
+		const sortedDays = days.sort(
+			(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
+		);
+
+		console.log(`Processing ${sortedDays.length} days...`);
+
+		// Add each day's menu
+		sortedDays.forEach((day) => {
+			// Check if we need a new page
+			if (y > 250) {
+				doc.addPage();
+				y = 20;
+			}
+
+			// Add day header with date
+			const date = new Date(day.fieldData['datum-feld']);
+			const dateStr = date
+				.toLocaleDateString('de-CH', {
+					weekday: 'long',
+					day: '2-digit',
+					month: '2-digit',
+				})
+				.replace(',', '');
+
+			// Add day header background
+			doc.setFillColor(200, 200, 200);
+			doc.rect(margin, y - 5, pageWidth - margin * 2, 8, 'F');
+			doc.setFillColor(0, 0, 0);
+			doc.setFontSize(14);
+			doc.text(dateStr.toUpperCase(), margin, y);
+			y += 10;
+
+			// Column positions
+			const col1 = margin;
+			const col2 = 80;
+			const col3 = 140;
+
+			// SUPPE Column
+			doc.setFontSize(14);
+			doc.text('SUPPE', col1, y);
+			doc.setFontSize(12);
+			const suppeMenu = findMenuById(menus, day.fieldData['suppe-1']);
+			const suppeLines = doc.splitTextToSize(suppeMenu, 50);
+			doc.text(suppeLines, col1, y + 7);
+
+			// MENU Column
+			doc.setFontSize(14);
+			doc.text('MENU', col2, y);
+			doc.setFontSize(12);
+			const mainMenu = findMenuById(menus, day.fieldData['menu-1']);
+			const mainMenuLines = doc.splitTextToSize(mainMenu, 50);
+			doc.text(mainMenuLines, col2, y + 7);
+			doc.text('gemischter Blattsalat', col2, y + 7 + mainMenuLines.length * 5);
+
+			// VEGETARISCH Column
+			doc.setFontSize(14);
+			doc.text('VEGETARISCH', col3, y);
+			doc.setFontSize(12);
+			const vegiMenu = findMenuById(menus, day.fieldData['vegetarisch-1']);
+			const vegiMenuLines = doc.splitTextToSize(vegiMenu, 50);
+			doc.text(vegiMenuLines, col3, y + 7);
+			doc.text('gemischter Blattsalat', col3, y + 7 + vegiMenuLines.length * 5);
+
+			y += 35; // Move down for next day
 		});
 
-		doc.moveDown();
-	});
-
-	// Add specials section
-	doc.fontSize(20).text('Daily Specials', { align: 'center' });
-	doc.moveDown();
-
-	specials.forEach((special) => {
-		const specialMenu = menus.find((menu) => menu._id === special.menuRef);
-		if (specialMenu) {
-			doc.fontSize(16).text(specialMenu.name);
-			doc.fontSize(12).text(specialMenu.description);
-			doc.moveDown();
+		// Add Specials section
+		if (y > 250) {
+			doc.addPage();
+			y = 20;
 		}
-	});
+
+		doc.setFillColor(200, 200, 200);
+		doc.rect(margin, y - 5, pageWidth - margin * 2, 8, 'F');
+		doc.setFillColor(0, 0, 0);
+		doc.setFontSize(14);
+		doc.text('SPECIALS', margin, y);
+		y += 10;
+
+		// Sort specials by sortierung
+		const sortedSpecials = specials.sort(
+			(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
+		);
+
+		sortedSpecials.forEach((special) => {
+			if (y > 270) {
+				doc.addPage();
+				y = 20;
+			}
+
+			doc.setFontSize(12);
+			const menu1 = findMenuById(menus, special.fieldData['menu-1']);
+			const menu2 = findMenuById(menus, special.fieldData['menu-2']);
+
+			if (menu1) {
+				const specialText = `${special.fieldData.name}: ${menu1}`;
+				const specialLines = doc.splitTextToSize(
+					specialText,
+					pageWidth - margin * 2
+				);
+				doc.text(specialLines, margin, y);
+				y += specialLines.length * 5;
+
+				if (menu2) {
+					const menu2Lines = doc.splitTextToSize(
+						`mit ${menu2}`,
+						pageWidth - margin * 2 - 10
+					);
+					doc.text(menu2Lines, margin + 10, y);
+					y += menu2Lines.length * 5;
+				}
+				y += 5;
+			}
+		});
+	} catch (error) {
+		console.error('Error during PDF creation:', error);
+		throw error;
+	}
+
+	// Verify PDF has content before returning
+	const pageCount = doc.internal.getNumberOfPages();
+	console.log(`Generated PDF has ${pageCount} pages`);
+
+	if (pageCount < 1) {
+		throw new Error('Generated PDF has no pages');
+	}
 
 	return doc;
 }
 
 exports.handler = async function (event, context) {
-	// Only allow GET requests
-	if (event.httpMethod !== 'GET') {
-		return {
-			statusCode: 405,
-			body: 'Method Not Allowed',
-		};
-	}
-
 	try {
+		console.log('Starting PDF generation process...');
+
 		// Fetch all required data
-		const [daysItems, menuItems, specialItems] = await Promise.all([
+		console.log('Fetching data from Webflow...');
+		const [daysResponse, menuItems, specialItems] = await Promise.all([
 			fetchCollectionItems(COLLECTION_IDS.days),
 			fetchCollectionItems(COLLECTION_IDS.menus),
 			fetchCollectionItems(COLLECTION_IDS.specials),
 		]);
 
+		console.log('Data fetched successfully:');
+		console.log(`Days: ${daysResponse.items.length} items`);
+		console.log(`Menus: ${menuItems.items.length} items`);
+		console.log(`Specials: ${specialItems.items.length} items`);
+
+		if (!daysResponse.items.length || !menuItems.items.length) {
+			throw new Error('Required data is missing - days or menus are empty');
+		}
+
 		// Create the PDF
-		const doc = createPDF(daysItems, menuItems, specialItems);
+		console.log('Creating PDF...');
+		const doc = createPDF(
+			daysResponse.items,
+			menuItems.items,
+			specialItems.items
+		);
+
+		// Get PDF as base64
+		console.log('Converting PDF to base64...');
+
+		// Try different method to get PDF output
+		let pdfBase64;
+		try {
+			// First try the standard output method
+			pdfBase64 = doc.output('base64');
+
+			// If that's empty, try getting it as data URI and extract base64
+			if (!pdfBase64) {
+				console.log(
+					'Standard base64 output was empty, trying data URI method...'
+				);
+				const dataUri = doc.output('datauristring');
+				pdfBase64 = dataUri.split(',')[1];
+			}
+
+			// If still empty, try getting it as binary string and convert
+			if (!pdfBase64) {
+				console.log('Data URI method failed, trying binary string method...');
+				const binary = doc.output('binary');
+				pdfBase64 = Buffer.from(binary).toString('base64');
+			}
+		} catch (error) {
+			console.error('Error during PDF base64 conversion:', error);
+			throw new Error('Failed to convert PDF to base64: ' + error.message);
+		}
+
+		if (!pdfBase64) {
+			throw new Error(
+				'PDF generation resulted in empty base64 string after all conversion attempts'
+			);
+		}
+
+		console.log(`Generated PDF base64 length: ${pdfBase64.length}`);
 
 		// Set response headers for PDF download
 		const headers = {
 			'Content-Type': 'application/pdf',
-			'Content-Disposition': 'attachment; filename=weekly-menu.pdf',
+			'Content-Disposition': 'attachment; filename=wochenmenu.pdf',
+			'Cache-Control': 'no-cache',
 		};
 
-		// Create a buffer to store the PDF
-		const chunks = [];
-		doc.on('data', (chunk) => chunks.push(chunk));
-
-		return new Promise((resolve, reject) => {
-			doc.on('end', () => {
-				const pdfBuffer = Buffer.concat(chunks);
-				resolve({
-					statusCode: 200,
-					headers,
-					body: pdfBuffer.toString('base64'),
-					isBase64Encoded: true,
-				});
-			});
-
-			doc.on('error', (err) => {
-				reject({
-					statusCode: 500,
-					body: JSON.stringify({ error: 'Failed to generate PDF' }),
-				});
-			});
-
-			// End the document
-			doc.end();
-		});
+		console.log('Returning PDF response...');
+		return {
+			statusCode: 200,
+			headers,
+			body: pdfBase64,
+			isBase64Encoded: true,
+		};
 	} catch (error) {
-		console.error('Error:', error);
+		console.error('Error in PDF generation:', error);
+		console.error('Error stack:', error.stack);
 		return {
 			statusCode: 500,
-			body: JSON.stringify({ error: 'Internal server error' }),
+			body: JSON.stringify({
+				error: 'Internal server error',
+				message: error.message,
+				stack: error.stack,
+			}),
 		};
 	}
 };
