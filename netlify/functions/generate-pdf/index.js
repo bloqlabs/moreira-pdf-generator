@@ -22,16 +22,59 @@ async function fetchCollectionItems(collectionId) {
 	}
 }
 
-function findMenuById(menus, id) {
-	return menus.find((menu) => menu.id === id)?.fieldData?.name || '';
+async function fetchMenuById(menuId) {
+	if (!menuId) return null;
+	try {
+		const menu = await webflow.collections.items.getItem(
+			COLLECTION_IDS.menus,
+			menuId
+		);
+		console.log('Fetched menu item:', menu);
+		return menu;
+	} catch (error) {
+		console.error(`Error fetching menu ${menuId}:`, error);
+		return null;
+	}
 }
 
-function createPDF(days, menus, specials) {
+function findMenuById(menus, id) {
+	if (!id || !menus) {
+		console.log('Invalid input to findMenuById:', {
+			id,
+			menusLength: menus?.length,
+		});
+		return '';
+	}
+	const menu = menus.find((menu) => menu.id === id);
+	if (!menu) {
+		console.log('Menu not found for id:', id);
+		// Log first few menu IDs to debug
+		console.log(
+			'Available menu IDs (first 5):',
+			menus.slice(0, 5).map((m) => m.id)
+		);
+	}
+	return menu?.fieldData?.name || '';
+}
+
+async function createPDF(days, menus, specials) {
 	console.log('Starting PDF creation with:', {
 		daysCount: days.length,
 		menusCount: menus.length,
-		specialsCount: specials.length,
+		specialsCount: specials ? specials.length : 0,
 	});
+
+	// Log some sample data to verify structure
+	if (menus.length > 0) {
+		console.log('Sample menu item:', menus[0]);
+	}
+	if (specials && specials.length > 0) {
+		console.log('Sample special:', specials[0]);
+		console.log('Menu IDs in first special:', {
+			menu1: specials[0].fieldData['menu-1'],
+			menu2: specials[0].fieldData['menu-2'],
+		});
+	}
 
 	// Create new document
 	const doc = new jsPDF({
@@ -164,7 +207,8 @@ function createPDF(days, menus, specials) {
 			y = 20;
 		}
 
-		doc.setFillColor(0, 0, 0); // Black background
+		// Add specials header
+		doc.setFillColor(0, 0, 0);
 		doc.rect(
 			margin - dayBarExtension,
 			y - 5,
@@ -172,63 +216,120 @@ function createPDF(days, menus, specials) {
 			8,
 			'F'
 		);
-		doc.setTextColor(215, 223, 35); // #D7DF23
-		doc.setFontSize(10); // Section headers now 10pt
+		doc.setTextColor(215, 223, 35);
+		doc.setFontSize(10);
 		doc.setFont(undefined, 'bold');
 		doc.text('Specials', margin, y);
 		doc.setFont(undefined, 'normal');
-		doc.setTextColor(0, 0, 0); // Reset to black
-		y += 10;
+		doc.setTextColor(0, 0, 0);
+		y += 15;
 
-		// Sort specials by sortierung
-		const sortedSpecials = specials.sort(
-			(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
-		);
+		// Sort and process specials
+		if (specials && specials.length > 0) {
+			console.log('Processing specials:', specials);
 
-		doc.setFontSize(10); // Regular text 10pt
-		sortedSpecials.forEach((special) => {
-			if (y > 270) {
-				doc.addPage();
-				y = 20;
-			}
+			const sortedSpecials = specials.sort(
+				(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
+			);
 
-			const menu1 = findMenuById(menus, special.fieldData['menu-1']);
-			const menu2 = findMenuById(menus, special.fieldData['menu-2']);
+			// Calculate column widths and positions
+			const columnWidth = (pageWidth - margin * 2 - 20) / 3; // 20mm total spacing between columns
+			const columnSpacing = 10; // 10mm between columns
+			const columns = [
+				margin,
+				margin + columnWidth + columnSpacing,
+				margin + (columnWidth + columnSpacing) * 2,
+			];
 
-			if (menu1) {
-				const specialText = `${special.fieldData.name}: ${menu1}`;
-				const specialLines = doc.splitTextToSize(
-					specialText,
-					pageWidth - margin * 2
-				);
-				doc.text(specialLines, margin, y);
-				y += specialLines.length * 5;
+			// Process each special (one per column)
+			for (let i = 0; i < sortedSpecials.length; i++) {
+				const special = sortedSpecials[i];
+				const x = columns[i];
+				let localY = y;
 
-				if (menu2) {
-					const menu2Lines = doc.splitTextToSize(
-						`mit ${menu2}`,
-						pageWidth - margin * 2 - 10
-					);
-					doc.text(menu2Lines, margin + 10, y);
-					y += menu2Lines.length * 5;
+				const menu1Id = special.fieldData['menu-1'];
+				const menu2Id = special.fieldData['menu-2'];
+
+				console.log(`Fetching menus for special "${special.fieldData.name}":`, {
+					menu1Id,
+					menu2Id,
+				});
+
+				// Fetch menu items directly
+				const [menu1Data, menu2Data] = await Promise.all([
+					fetchMenuById(menu1Id),
+					fetchMenuById(menu2Id),
+				]);
+
+				// Process menu items for this special
+				const menuItems = [menu1Data, menu2Data].filter(Boolean);
+
+				for (const menuData of menuItems) {
+					if (!menuData) continue;
+
+					const name = menuData.fieldData.name || '';
+					const subtitle = menuData.fieldData.kurzbeschrieb || '';
+					const price = menuData.fieldData['regularer-preis'] || '';
+
+					// Calculate text heights
+					const nameLines = doc.splitTextToSize(name, columnWidth);
+
+					// Add menu item name
+					doc.setFontSize(10);
+					doc.setFont(undefined, 'bold');
+					doc.text(nameLines, x, localY);
+					localY += nameLines.length * 5;
+
+					// Add subtitle with reduced opacity
+					if (subtitle) {
+						doc.setFontSize(8); // Smaller font for subtitle
+						doc.setFont(undefined, 'normal');
+
+						// Set reduced opacity for subtitle
+						const opacity = 0.6;
+						doc.saveGraphicsState();
+						doc.setGState(new doc.GState({ opacity }));
+
+						const subtitleLines = doc.splitTextToSize(subtitle, columnWidth);
+						doc.text(subtitleLines, x, localY);
+						doc.restoreGraphicsState();
+
+						localY += subtitleLines.length * 4; // Slightly reduced spacing for smaller font
+					}
+
+					// Add price
+					doc.setFontSize(10);
+					doc.setFont(undefined, 'normal');
+					if (price) {
+						if (!price.startsWith('Fr.')) {
+							doc.text(`Fr. ${price}`, x, localY);
+						} else {
+							doc.text(price, x, localY);
+						}
+						localY += 8;
+					}
+
+					// Add spacing between items in the same column
+					localY += 4;
 				}
-				y += 5;
 			}
-		});
+		} else {
+			console.log('No specials data available');
+		}
+
+		// Verify PDF has content before returning
+		const pageCount = doc.internal.getNumberOfPages();
+		console.log(`Generated PDF has ${pageCount} pages`);
+
+		if (pageCount < 1) {
+			throw new Error('Generated PDF has no pages');
+		}
+
+		return doc;
 	} catch (error) {
 		console.error('Error during PDF creation:', error);
 		throw error;
 	}
-
-	// Verify PDF has content before returning
-	const pageCount = doc.internal.getNumberOfPages();
-	console.log(`Generated PDF has ${pageCount} pages`);
-
-	if (pageCount < 1) {
-		throw new Error('Generated PDF has no pages');
-	}
-
-	return doc;
 }
 
 exports.handler = async function (event, context) {
@@ -254,7 +355,7 @@ exports.handler = async function (event, context) {
 
 		// Create the PDF
 		console.log('Creating PDF...');
-		const doc = createPDF(
+		const doc = await createPDF(
 			daysResponse.items,
 			menuItems.items,
 			specialItems.items
@@ -262,14 +363,13 @@ exports.handler = async function (event, context) {
 
 		// Get PDF as base64
 		console.log('Converting PDF to base64...');
-
-		// Try different method to get PDF output
 		let pdfBase64;
+
 		try {
 			// First try the standard output method
-			pdfBase64 = doc.output('base64');
+			pdfBase64 = Buffer.from(doc.output('arraybuffer')).toString('base64');
 
-			// If that's empty, try getting it as data URI and extract base64
+			// If that's empty, try getting it as data URI
 			if (!pdfBase64) {
 				console.log(
 					'Standard base64 output was empty, trying data URI method...'
@@ -278,7 +378,7 @@ exports.handler = async function (event, context) {
 				pdfBase64 = dataUri.split(',')[1];
 			}
 
-			// If still empty, try getting it as binary string and convert
+			// If still empty, try getting it as binary string
 			if (!pdfBase64) {
 				console.log('Data URI method failed, trying binary string method...');
 				const binary = doc.output('binary');
