@@ -1,5 +1,6 @@
-const { WebflowClient } = require('webflow-api');
-const { jsPDF } = require('jspdf');
+import { jsPDF } from 'jspdf';
+import { WebflowClient } from 'webflow-api';
+import { logo } from './logo';
 
 // Initialize Webflow client
 const webflow = new WebflowClient({
@@ -29,7 +30,6 @@ async function fetchMenuById(menuId) {
 			COLLECTION_IDS.menus,
 			menuId
 		);
-		console.log('Fetched menu item:', menu);
 		return menu;
 	} catch (error) {
 		console.error(`Error fetching menu ${menuId}:`, error);
@@ -39,7 +39,7 @@ async function fetchMenuById(menuId) {
 
 function findMenuById(menus, id) {
 	if (!id || !menus) {
-		console.log('Invalid input to findMenuById:', {
+		console.error('Invalid input to findMenuById:', {
 			id,
 			menusLength: menus?.length,
 		});
@@ -47,35 +47,12 @@ function findMenuById(menus, id) {
 	}
 	const menu = menus.find((menu) => menu.id === id);
 	if (!menu) {
-		console.log('Menu not found for id:', id);
-		// Log first few menu IDs to debug
-		console.log(
-			'Available menu IDs (first 5):',
-			menus.slice(0, 5).map((m) => m.id)
-		);
+		console.error('Menu not found for id:', id);
 	}
 	return menu?.fieldData?.name || '';
 }
 
 async function createPDF(days, menus, specials) {
-	console.log('Starting PDF creation with:', {
-		daysCount: days.length,
-		menusCount: menus.length,
-		specialsCount: specials ? specials.length : 0,
-	});
-
-	// Log some sample data to verify structure
-	if (menus.length > 0) {
-		console.log('Sample menu item:', menus[0]);
-	}
-	if (specials && specials.length > 0) {
-		console.log('Sample special:', specials[0]);
-		console.log('Menu IDs in first special:', {
-			menu1: specials[0].fieldData['menu-1'],
-			menu2: specials[0].fieldData['menu-2'],
-		});
-	}
-
 	// Create new document
 	const doc = new jsPDF({
 		orientation: 'portrait',
@@ -88,8 +65,6 @@ async function createPDF(days, menus, specials) {
 		throw new Error('Failed to create PDF document');
 	}
 
-	console.log('PDF document created successfully');
-
 	// Set initial position and constants
 	let y = 15;
 	const margin = 20;
@@ -97,6 +72,15 @@ async function createPDF(days, menus, specials) {
 	const dayBarExtension = 5; // 5mm extension on each side for day bars
 
 	try {
+		// Add logo to top right corner
+		const logoWidth = 30; // width in mm
+		const logoX = pageWidth - margin - logoWidth; // position from right edge
+		const logoY = 10; // position from top
+		// Calculate height based on actual dimensions (3576 × 1334)
+		const aspectRatio = 3576 / 1334; // width/height
+		const logoHeight = logoWidth / aspectRatio;
+		doc.addImage(logo, 'PNG', logoX, logoY, logoWidth, logoHeight);
+
 		// Add title
 		doc.setFontSize(12);
 		doc.setFont(undefined, 'bold');
@@ -124,8 +108,6 @@ async function createPDF(days, menus, specials) {
 		const sortedDays = days.sort(
 			(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
 		);
-
-		console.log(`Processing ${sortedDays.length} days...`);
 
 		// Add each day's menu
 		sortedDays.forEach((day) => {
@@ -224,8 +206,6 @@ async function createPDF(days, menus, specials) {
 
 		// Sort and process specials
 		if (specials && specials.length > 0) {
-			console.log('Processing specials:', specials);
-
 			const sortedSpecials = specials.sort(
 				(a, b) => a.fieldData.sortierung - b.fieldData.sortierung
 			);
@@ -247,11 +227,6 @@ async function createPDF(days, menus, specials) {
 
 				const menu1Id = special.fieldData['menu-1'];
 				const menu2Id = special.fieldData['menu-2'];
-
-				console.log(`Fetching menus for special "${special.fieldData.name}":`, {
-					menu1Id,
-					menu2Id,
-				});
 
 				// Fetch menu items directly
 				const [menu1Data, menu2Data] = await Promise.all([
@@ -306,12 +281,11 @@ async function createPDF(days, menus, specials) {
 				}
 			}
 		} else {
-			console.log('No specials data available');
+			console.error('No specials data available');
 		}
 
 		// Verify PDF has content before returning
 		const pageCount = doc.internal.getNumberOfPages();
-		console.log(`Generated PDF has ${pageCount} pages`);
 
 		if (pageCount < 1) {
 			throw new Error('Generated PDF has no pages');
@@ -326,27 +300,18 @@ async function createPDF(days, menus, specials) {
 
 exports.handler = async function (event, context) {
 	try {
-		console.log('Starting PDF generation process...');
-
 		// Fetch all required data
-		console.log('Fetching data from Webflow...');
 		const [daysResponse, menuItems, specialItems] = await Promise.all([
 			fetchCollectionItems(COLLECTION_IDS.days),
 			fetchCollectionItems(COLLECTION_IDS.menus),
 			fetchCollectionItems(COLLECTION_IDS.specials),
 		]);
 
-		console.log('Data fetched successfully:');
-		console.log(`Days: ${daysResponse.items.length} items`);
-		console.log(`Menus: ${menuItems.items.length} items`);
-		console.log(`Specials: ${specialItems.items.length} items`);
-
 		if (!daysResponse.items.length || !menuItems.items.length) {
 			throw new Error('Required data is missing - days or menus are empty');
 		}
 
 		// Create the PDF
-		console.log('Creating PDF...');
 		const doc = await createPDF(
 			daysResponse.items,
 			menuItems.items,
@@ -354,28 +319,10 @@ exports.handler = async function (event, context) {
 		);
 
 		// Get PDF as base64
-		console.log('Converting PDF to base64...');
 		let pdfBase64;
 
 		try {
-			// First try the standard output method
 			pdfBase64 = Buffer.from(doc.output('arraybuffer')).toString('base64');
-
-			// If that's empty, try getting it as data URI
-			if (!pdfBase64) {
-				console.log(
-					'Standard base64 output was empty, trying data URI method...'
-				);
-				const dataUri = doc.output('datauristring');
-				pdfBase64 = dataUri.split(',')[1];
-			}
-
-			// If still empty, try getting it as binary string
-			if (!pdfBase64) {
-				console.log('Data URI method failed, trying binary string method...');
-				const binary = doc.output('binary');
-				pdfBase64 = Buffer.from(binary).toString('base64');
-			}
 		} catch (error) {
 			console.error('Error during PDF base64 conversion:', error);
 			throw new Error('Failed to convert PDF to base64: ' + error.message);
@@ -387,8 +334,6 @@ exports.handler = async function (event, context) {
 			);
 		}
 
-		console.log(`Generated PDF base64 length: ${pdfBase64.length}`);
-
 		// Set response headers for PDF download
 		const headers = {
 			'Content-Type': 'application/pdf',
@@ -396,7 +341,6 @@ exports.handler = async function (event, context) {
 			'Cache-Control': 'no-cache',
 		};
 
-		console.log('Returning PDF response...');
 		return {
 			statusCode: 200,
 			headers,
