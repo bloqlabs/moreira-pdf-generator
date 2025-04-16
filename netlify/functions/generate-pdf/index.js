@@ -91,21 +91,21 @@ async function createPDF(days, menus, specials) {
 	console.log('PDF document created successfully');
 
 	// Set initial position and constants
-	let y = 20;
+	let y = 15;
 	const margin = 20;
 	const pageWidth = doc.internal.pageSize.width;
 	const dayBarExtension = 5; // 5mm extension on each side for day bars
 
 	try {
 		// Add title
-		doc.setFontSize(14); // Main title 14pt
+		doc.setFontSize(12);
 		doc.setFont(undefined, 'bold');
 		doc.text('Wochenmenu', margin, y);
 		doc.setFont(undefined, 'normal');
-		y += 10;
+		y += 8;
 
 		// Add subtitle with reduced opacity
-		doc.setFontSize(10); // Regular text 10pt
+		doc.setFontSize(9);
 		// Convert black to rgba(0,0,0,0.6) by setting fill color with alpha
 		doc.setFillColor(0, 0, 0);
 		doc.setTextColor(0, 0, 0);
@@ -118,7 +118,7 @@ async function createPDF(days, menus, specials) {
 			y
 		);
 		doc.restoreGraphicsState();
-		y += 15;
+		y += 10;
 
 		// Sort days by sortierung
 		const sortedDays = days.sort(
@@ -149,22 +149,22 @@ async function createPDF(days, menus, specials) {
 			doc.setFillColor(0, 0, 0); // Black background (#000)
 			doc.rect(
 				margin - dayBarExtension,
-				y - 5,
+				y - 4,
 				pageWidth - margin * 2 + dayBarExtension * 2,
-				8,
+				7,
 				'F'
 			);
 
 			// Set text color for date to #D7DF23 (convert hex to RGB)
 			doc.setTextColor(215, 223, 35); // #D7DF23
-			doc.setFontSize(10); // Regular text 10pt
+			doc.setFontSize(9);
 			doc.setFont(undefined, 'bold'); // Make days bold
 			doc.text(dateStr, margin, y);
 			doc.setFont(undefined, 'normal');
 
 			// Reset text color to black for rest of content
 			doc.setTextColor(0, 0, 0);
-			y += 10;
+			y += 8;
 
 			// Column positions
 			const col1 = margin;
@@ -172,13 +172,13 @@ async function createPDF(days, menus, specials) {
 			const col3 = 140;
 
 			// SUPPE Column
-			doc.setFontSize(10); // Regular text 10pt
+			doc.setFontSize(9);
 			doc.setFont(undefined, 'bold');
 			doc.text('Suppe', col1, y);
 			doc.setFont(undefined, 'normal');
 			const suppeMenu = findMenuById(menus, day.fieldData['suppe-1']);
 			const suppeLines = doc.splitTextToSize(suppeMenu, 50);
-			doc.text(suppeLines, col1, y + 7);
+			doc.text(suppeLines, col1, y + 5);
 
 			// MENU Column
 			doc.setFont(undefined, 'bold');
@@ -186,8 +186,7 @@ async function createPDF(days, menus, specials) {
 			doc.setFont(undefined, 'normal');
 			const mainMenu = findMenuById(menus, day.fieldData['menu-1']);
 			const mainMenuLines = doc.splitTextToSize(mainMenu, 50);
-			doc.text(mainMenuLines, col2, y + 7);
-			doc.text('gemischter Blattsalat', col2, y + 7 + mainMenuLines.length * 5);
+			doc.text(mainMenuLines, col2, y + 5);
 
 			// VEGETARISCH Column
 			doc.setFont(undefined, 'bold');
@@ -195,10 +194,9 @@ async function createPDF(days, menus, specials) {
 			doc.setFont(undefined, 'normal');
 			const vegiMenu = findMenuById(menus, day.fieldData['vegetarisch-1']);
 			const vegiMenuLines = doc.splitTextToSize(vegiMenu, 50);
-			doc.text(vegiMenuLines, col3, y + 7);
-			doc.text('gemischter Blattsalat', col3, y + 7 + vegiMenuLines.length * 5);
+			doc.text(vegiMenuLines, col3, y + 5);
 
-			y += 35; // Move down for next day
+			y += 25; // Move down for next day
 		});
 
 		// Add Specials section
@@ -211,18 +209,18 @@ async function createPDF(days, menus, specials) {
 		doc.setFillColor(0, 0, 0);
 		doc.rect(
 			margin - dayBarExtension,
-			y - 5,
+			y - 4,
 			pageWidth - margin * 2 + dayBarExtension * 2,
-			8,
+			7,
 			'F'
 		);
 		doc.setTextColor(215, 223, 35);
-		doc.setFontSize(10);
+		doc.setFontSize(9);
 		doc.setFont(undefined, 'bold');
 		doc.text('Specials', margin, y);
 		doc.setFont(undefined, 'normal');
 		doc.setTextColor(0, 0, 0);
-		y += 15;
+		y += 12;
 
 		// Sort and process specials
 		if (specials && specials.length > 0) {
@@ -275,10 +273,10 @@ async function createPDF(days, menus, specials) {
 					const nameLines = doc.splitTextToSize(name, columnWidth);
 
 					// Add menu item name
-					doc.setFontSize(10);
+					doc.setFontSize(9);
 					doc.setFont(undefined, 'bold');
 					doc.text(nameLines, x, localY);
-					localY += nameLines.length * 5;
+					localY += nameLines.length * 4;
 
 					// Add subtitle with reduced opacity
 					if (subtitle) {
@@ -293,18 +291,18 @@ async function createPDF(days, menus, specials) {
 						doc.text(subtitleLines, x, localY);
 						doc.restoreGraphicsState();
 
-						localY += subtitleLines.length * 5;
+						localY += subtitleLines.length * 4;
 					}
 
 					// Add price
 					doc.setFont(undefined, 'normal');
 					if (price) {
 						doc.text(price, x, localY);
-						localY += 5; // Reduced spacing after price
+						localY += 4;
 					}
 
 					// Add minimal spacing between items in the same column
-					localY += 3; // Reduced spacing between items
+					localY += 2;
 				}
 			}
 		} else {
