@@ -79,7 +79,18 @@ async function createPDF(days, menus, specials) {
 		// Calculate height based on actual dimensions (3576 × 1334)
 		const aspectRatio = 3576 / 1334; // width/height
 		const logoHeight = logoWidth / aspectRatio;
-		doc.addImage(logo, 'PNG', logoX, logoY, logoWidth, logoHeight);
+		// Add image with quality optimization
+		doc.addImage(
+			logo,
+			'PNG',
+			logoX,
+			logoY,
+			logoWidth,
+			logoHeight,
+			undefined,
+			'FAST',
+			0.8
+		);
 
 		// Add title
 		doc.setFontSize(12);
@@ -318,11 +329,17 @@ exports.handler = async function (event, context) {
 			specialItems.items
 		);
 
-		// Get PDF as base64
+		// Get PDF as base64 with compression
 		let pdfBase64;
 
 		try {
-			pdfBase64 = Buffer.from(doc.output('arraybuffer')).toString('base64');
+			// Use compression to reduce file size
+			const pdfOutput = doc.output('arraybuffer', {
+				compress: true,
+				putOnlyUsedFonts: true,
+				precision: 2,
+			});
+			pdfBase64 = Buffer.from(pdfOutput).toString('base64');
 		} catch (error) {
 			console.error('Error during PDF base64 conversion:', error);
 			throw new Error('Failed to convert PDF to base64: ' + error.message);
