@@ -100,7 +100,7 @@ async function createPDF(days, menus, specials) {
 		y += 8;
 
 		// Add subtitle with reduced opacity
-		doc.setFontSize(9);
+		doc.setFontSize(10);
 		// Convert black to rgba(0,0,0,0.6) by setting fill color with alpha
 		doc.setFillColor(0, 0, 0);
 		doc.setTextColor(0, 0, 0);
@@ -144,13 +144,13 @@ async function createPDF(days, menus, specials) {
 				margin - dayBarExtension,
 				y - 4,
 				pageWidth - margin * 2 + dayBarExtension * 2,
-				7,
+				6,
 				'F'
 			);
 
 			// Set text color for date to #D7DF23 (convert hex to RGB)
 			doc.setTextColor(215, 223, 35); // #D7DF23
-			doc.setFontSize(9);
+			doc.setFontSize(10);
 			doc.setFont(undefined, 'bold'); // Make days bold
 			doc.text(dateStr, margin, y);
 			doc.setFont(undefined, 'normal');
@@ -165,13 +165,14 @@ async function createPDF(days, menus, specials) {
 			const col3 = 140;
 
 			// SUPPE Column
-			doc.setFontSize(9);
+			doc.setFontSize(10);
 			doc.setFont(undefined, 'bold');
 			doc.text('Suppe', col1, y);
 			doc.setFont(undefined, 'normal');
 			const suppeMenu = findMenuById(menus, day.fieldData['suppe-1']);
 			const suppeLines = doc.splitTextToSize(suppeMenu, 50);
 			doc.text(suppeLines, col1, y + 5);
+			let suppeHeight = suppeLines.length * 5;
 
 			// MENU Column
 			doc.setFont(undefined, 'bold');
@@ -180,6 +181,9 @@ async function createPDF(days, menus, specials) {
 			const mainMenu = findMenuById(menus, day.fieldData['menu-1']);
 			const mainMenuLines = doc.splitTextToSize(mainMenu, 50);
 			doc.text(mainMenuLines, col2, y + 5);
+			let mainMenuHeight = mainMenuLines.length * 5;
+			doc.text('gemischter Blattsalat', col2, y + 5 + mainMenuLines.length * 5);
+			mainMenuHeight += 7;
 
 			// VEGETARISCH Column
 			doc.setFont(undefined, 'bold');
@@ -188,8 +192,17 @@ async function createPDF(days, menus, specials) {
 			const vegiMenu = findMenuById(menus, day.fieldData['vegetarisch-1']);
 			const vegiMenuLines = doc.splitTextToSize(vegiMenu, 50);
 			doc.text(vegiMenuLines, col3, y + 5);
+			let vegiMenuHeight = vegiMenuLines.length * 5;
+			doc.text('gemischter Blattsalat', col3, y + 5 + vegiMenuLines.length * 5);
+			vegiMenuHeight += 7;
 
-			y += 25; // Move down for next day
+			// Calculate max height of columns to determine where next day should start
+			const maxColumnHeight = Math.max(
+				suppeHeight,
+				mainMenuHeight,
+				vegiMenuHeight
+			);
+			y += maxColumnHeight + 10; // Add space for column headers and buffer between days
 		});
 
 		// Add Specials section
@@ -204,16 +217,16 @@ async function createPDF(days, menus, specials) {
 			margin - dayBarExtension,
 			y - 4,
 			pageWidth - margin * 2 + dayBarExtension * 2,
-			7,
+			6,
 			'F'
 		);
 		doc.setTextColor(215, 223, 35);
-		doc.setFontSize(9);
+		doc.setFontSize(10);
 		doc.setFont(undefined, 'bold');
 		doc.text('Specials', margin, y);
 		doc.setFont(undefined, 'normal');
 		doc.setTextColor(0, 0, 0);
-		y += 12;
+		y += 8;
 
 		// Sort and process specials
 		if (specials && specials.length > 0) {
@@ -259,10 +272,10 @@ async function createPDF(days, menus, specials) {
 					const nameLines = doc.splitTextToSize(name, columnWidth);
 
 					// Add menu item name
-					doc.setFontSize(9);
+					doc.setFontSize(10);
 					doc.setFont(undefined, 'bold');
 					doc.text(nameLines, x, localY);
-					localY += nameLines.length * 4;
+					localY += nameLines.length * 4 + 1;
 
 					// Add subtitle with reduced opacity
 					if (subtitle) {
@@ -277,14 +290,14 @@ async function createPDF(days, menus, specials) {
 						doc.text(subtitleLines, x, localY);
 						doc.restoreGraphicsState();
 
-						localY += subtitleLines.length * 4;
+						localY += subtitleLines.length * 4 + 1;
 					}
 
 					// Add price
 					doc.setFont(undefined, 'normal');
 					if (price) {
 						doc.text(price, x, localY);
-						localY += 4;
+						localY += 4 + 1;
 					}
 
 					// Add minimal spacing between items in the same column
